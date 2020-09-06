@@ -1,0 +1,158 @@
+#azure-cli instlal with pip3
+#Or https://docs.microsoft.com/en-us/cli/azure/install-azure-cli-apt?view=azure-cli-latest
+
+oyj@controller:~$ az login #Browser login for the first time
+#Create tstansible 'service principal'
+oyj@controller:~$ az ad sp create-for-rbac --name tstansible
+Changing "tstansible" to a valid URI of "http://tstansible", which is the required format used for service principal names
+Creating a role assignment under the scope of "/subscriptions/7179c5c7-71a5-434b-8ac9-ccc6e6bc950a"
+  Retrying role assignment creation: 1/36
+{
+  "appId": "5960ef73-f8c7-4041-95d3-8123ffce713e",
+  "displayName": "tstansible",
+  "name": "http://tstansible",
+  "password": "y192RID4Bo0~4LA0zn2IMzVWu_oLnmvsrV",
+  "tenant": "dbebdef3-caea-4902-acc1-dea298b10f6c"
+}
+
+oyj@controller:~$ az logout
+oyj@controller:~$ az group list
+Please run 'az login' to setup account.
+
+oyj@controller:~$ az login --service-principal --username 5960ef73-f8c7-4041-95d3-8123ffce713e --password y192RID4Bo0~4LA0zn2IMzVWu_oLnmvsrV --tenant dbebdef3-caea-4902-acc1-dea298b10f6c
+[
+  {
+    "cloudName": "AzureCloud",
+    "homeTenantId": "dbebdef3-caea-4902-acc1-dea298b10f6c",
+    "id": "7179c5c7-71a5-434b-8ac9-ccc6e6bc950a",
+    "isDefault": true,
+    "managedByTenants": [],
+    "name": "Azure subscription 1",
+    "state": "Enabled",
+    "tenantId": "dbebdef3-caea-4902-acc1-dea298b10f6c",
+    "user": {
+      "name": "5960ef73-f8c7-4041-95d3-8123ffce713e",
+      "type": "servicePrincipal"
+    }
+  }
+]
+
+oyj@controller:~$ az group list
+[
+  {
+    "id": "/subscriptions/7179c5c7-71a5-434b-8ac9-ccc6e6bc950a/resourceGroups/NetworkWatcherRG",
+    "location": "koreacentral",
+    "managedBy": null,
+    "name": "NetworkWatcherRG",
+    "properties": {
+      "provisioningState": "Succeeded"
+    },
+    "tags": null,
+    "type": "Microsoft.Resources/resourceGroups"
+  }
+]
+oyj@controller:~$ az group list --output table
+Name              Location      Status
+----------------  ------------  ---------
+NetworkWatcherRG  koreacentral  Succeeded
+
+
+
+
+
+oyj@controller:~$ tail -4 ~/.bashrc
+export  AZURE_CLIENT_ID=5960ef73-f8c7-4041-95d3-8123ffce713e
+export  AZURE_SECRET=y192RID4Bo0~4LA0zn2IMzVWu_oLnmvsrV
+export  AZURE_SUBSCRIPTION_ID=7179c5c7-71a5-434b-8ac9-ccc6e6bc950a
+export  AZURE_TENANT=dbebdef3-caea-4902-acc1-dea298b10f6c
+
+oyj@controller:~/prac/ansible-azure$ virtualenv ansible
+created virtual environment CPython3.6.9.final.0-64 in 230ms
+  creator CPython3Posix(dest=/home/oyj/prac/ansible-azure/ansible, clear=False, global=False)
+  seeder FromAppData(download=False, pip=bundle, setuptools=bundle, wheel=bundle, via=copy, app_data_dir=/home/oyj/.local/share/virtualenv)
+    added seed packages: pip==20.1.1, setuptools==49.2.1, wheel==0.34.2
+  activators BashActivator,CShellActivator,FishActivator,PowerShellActivator,PythonActivator,XonshActivator
+oyj@controller:~/prac/ansible-azure$ source ansible/bin/activate
+(ansible) oyj@controller:~/prac/ansible-azure$ ls
+
+(ansible) oyj@controller:~/prac$ pip3 install 'ansible[azure]'
+(ansible) oyj@controller:~/prac/ansible-azure$ source ~/.bashrc
+
+(ansible) oyj@controller:~/prac/ansible-azure$ cat crt_rg_virtnw.yaml 
+---
+- hosts: localhost
+  connection: local
+  #  gather_facts: no
+
+  tasks:
+
+
+  - name: Create RG
+    azure_rm_resourcegroup:
+      name: ansiblesg1
+      location: koreacentral
+    register: rg
+
+  - debug:
+      var: rg
+
+  #Create virtual network 
+  #- name: Create virtual nw
+
+
+
+(ansible) oyj@controller:~/prac/ansible-azure$ ansible-playbook crt_rg_virtnw.yaml 
+[WARNING]: provided hosts list is empty, only localhost is available. Note that
+the implicit localhost does not match 'all'
+
+PLAY [localhost] ***************************************************************
+
+TASK [Gathering Facts] *********************************************************
+ok: [localhost]
+
+TASK [Create RG] ***************************************************************
+changed: [localhost]
+
+TASK [debug] *******************************************************************
+ok: [localhost] => {
+    "rg": {
+        "changed": true,
+        "contains_resources": false,
+        "failed": false,
+        "state": {
+            "id": "/subscriptions/7179c5c7-71a5-434b-8ac9-ccc6e6bc950a/resourceGroups/ansiblesg1",
+            "location": "koreacentral",
+            "name": "ansiblesg1",
+            "provisioning_state": "Succeeded",
+            "tags": null
+        }
+    }
+}
+
+PLAY RECAP *********************************************************************
+localhost                  : ok=3    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+
+
+#Using az cli to delte resource group.It really take more time to delete than aws'
+oyj@controller:~/prac/ansible-azure$ az group delete -n ansiblesg
+Are you sure you want to perform this operation? (y/n): y
+ - Running ..
+oyj@controller:~/prac/ansible-azure$ 
+oyj@controller:~/prac/ansible-azure$ az group delete -n ansiblesg1
+Are you sure you want to perform this operation? (y/n): y
+
+oyj@controller:~/prac/ansible-azure$ az group delete -n ansiblesg1
+Are you sure you want to perform this operation? (y/n): y
+
+
+oyj@controller:~/prac/ansible-azure$ az group list -o table
+Name              Location      Status
+----------------  ------------  ---------
+NetworkWatcherRG  koreacentral  Succeeded
+oyj@controller:~/prac/ansible-azure$ az group list -o tsv
+/subscriptions/7179c5c7-71a5-434b-8ac9-ccc6e6bc950a/resourceGroups/NetworkWatcherRG	koreacentral	None	NetworkWatcherRGNone	Microsoft.Resources/resourceGroups
+
+
+
+
+

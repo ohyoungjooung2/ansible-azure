@@ -1,0 +1,21 @@
+---
+- hosts: localhost
+  connection: local
+  #  gather_facts: no
+
+  tasks:
+
+
+  - name: Create RG
+    azure_rm_resourcegroup:
+      name: ansiblesg1
+      location: koreacentral
+    register: rg
+
+  - debug:
+      var: rg
+
+  #Create virtual network 
+  #- name: Create virtual nw
+
+

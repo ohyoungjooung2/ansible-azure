@@ -1,0 +1,124 @@
+oyj@controller:~$ az account list-locations | grep -i korea
+    "displayName": "Korea Central",
+    "id": "/subscriptions/7179c5c7-71a5-434b-8ac9-ccc6e6bc950a/locations/koreacentral",
+    "name": "koreacentral",
+    "displayName": "Korea South",
+    "id": "/subscriptions/7179c5c7-71a5-434b-8ac9-ccc6e6bc950a/locations/koreasouth",
+    "name": "koreasouth",
+oyj@controller:~$ az group create --name tr --location koreacentral
+{
+  "id": "/subscriptions/7179c5c7-71a5-434b-8ac9-ccc6e6bc950a/resourceGroups/tr",
+  "location": "koreacentral",
+  "managedBy": null,
+  "name": "tr",
+  "properties": {
+    "provisioningState": "Succeeded"
+  },
+  "tags": null,
+  "type": "Microsoft.Resources/resourceGroups"
+
+oyj@controller:~$ az vm create --resource-group tr \
+> --name trvm1 \
+> --image UbuntuLTS \
+> --generate-ssh-keys \
+> --output json \
+> --verbose
+Use existing SSH public key file: /home/oyj/.ssh/id_rsa.pub
+Succeeded: trvm1VNET (Microsoft.Network/virtualNetworks)
+Succeeded: trvm1PublicIP (Microsoft.Network/publicIPAddresses)
+Accepted: trvm1 (Microsoft.Compute/virtualMachines)
+Succeeded: trvm1VMNic (Microsoft.Network/networkInterfaces)
+Succeeded: trvm1NSG (Microsoft.Network/networkSecurityGroups)
+{- Finished ..
+  "fqdns": "",
+  "id": "/subscriptions/7179c5c7-71a5-434b-8ac9-ccc6e6bc950a/resourceGroups/tr/providers/Microsoft.Compute/virtualMachines/trvm1",
+  "location": "koreacentral",
+  "macAddress": "00-22-48-0E-CF-01",
+  "powerState": "VM running",
+  "privateIpAddress": "10.0.0.4",
+  "publicIpAddress": "20.194.16.21",
+  "resourceGroup": "tr",
+  "zones": ""
+}
+Command ran in 93.977 seconds (init: 0.030, invoke: 93.947)
+
+oyj@controller:~$ ssh oyj@20.194.16.21
+Last login: Sun Sep  6 16:45:17 2020 from 183.101.41.227
+oyj@trvm1:~$ ip a
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host 
+       valid_lft forever preferred_lft forever
+2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP group default qlen 1000
+    link/ether 00:22:48:0e:cf:01 brd ff:ff:ff:ff:ff:ff
+    inet 10.0.0.4/24 brd 10.0.0.255 scope global eth0
+       valid_lft forever preferred_lft forever
+    inet6 fe80::222:48ff:fe0e:cf01/64 scope link 
+       valid_lft forever preferred_lft forever
+
+
+oyj@controller:~$ az vm show --name trvm1 --resource-group tr
+{
+  "additionalCapabilities": null,
+  "availabilitySet": null,
+  "billingProfile": null,
+  "diagnosticsProfile": null,
+  "evictionPolicy": null,
+  "hardwareProfile": {
+    "vmSize": "Standard_DS1_v2"
+  },
+  "host": null,
+  "id": "/subscriptions/7179c5c7-71a5-434b-8ac9-ccc6e6bc950a/resourceGroups/tr/providers/Microsoft.Compute/virtualMachines/trvm1",
+  "identity": null,
+  "instanceView": null,
+  "licenseType": null,
+  "location": "koreacentral",
+  "name": "trvm1",
+  "networkProfile": {
+    "networkInterfaces": [
+      {
+        "id": "/subscriptions/7179c5c7-71a5-434b-8ac9-ccc6e6bc950a/resourceGroups/tr/providers/Microsoft.Network/networkInterfaces/trvm1VMNic",
+        "primary": null,
+        "resourceGroup": "tr"
+      }
+    ]
+  },
+  "tags": {},
+  "type": "Microsoft.Compute/virtualMachines",
+  "virtualMachineScaleSet": null,
+  "vmId": "f0d0fa50-c3c1-452d-8953-e54a5f7f9c42",
+  "zones": null
+}
+
+
+oyj@controller:~$ az vm show -n trvm1 -g tr --query 'networkProfile.networkInterfaces[].id' -o tsv
+/subscriptions/7179c5c7-71a5-434b-8ac9-ccc6e6bc950a/resourceGroups/tr/providers/Microsoft.Network/networkInterfaces/trvm1VMNic
+
+
+
+oyj@controller:~$ NIC_ID=$(az vm show -n trvm1 -g tr\                
+  --query 'networkProfile.networkInterfaces[].id' \
+  -o tsv)
+
+
+
+
+oyj@controller:~$ P_IP_ADDR=$(az vm create -g tr -n trvm2 --image UbuntuLTS --generate-ssh-keys --subnet $SUBNET_ID \
+> --query publicIpAddress -o tsv)
+ - Running ..
+
+
+oyj@controller:~$ ssh $P_IP_ADDR
+
+
+oyj@trvm2:~$ 
+
+
+
+#Cleanup
+
+oyj@controller:~$ az group wait --name tr --deleted
+ - Starting ..
+
