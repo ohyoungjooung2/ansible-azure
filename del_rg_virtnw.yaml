@@ -10,8 +10,22 @@
     ST: 'absent'
     VN: 'ansitstvn'
     AP: '10.11.0.0/16'
+    SBN: 'wasubnet'
 
   tasks:
+  #Delete subnet to provide vm
+  - name: Create subnet on vn(virtual network)
+    azure_rm_subnet:
+      resource_group: '{{ RG }}'
+      virtual_network_name: '{{ VN  }}'
+      name: '{{ SBN }}'
+      address_prefix_cidr: '10.11.0.0/24'
+      state: '{{ ST }}'
+    register: sbn_regi
+
+  - debug:
+      var: sbn_regi
+
 
   #Delete virtual network 
   - name: Delete virtual nw
@@ -34,4 +48,3 @@
 
   - debug:
       var: rg
-

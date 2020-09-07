@@ -1,21 +1,50 @@
 ---
 - hosts: localhost
   connection: local
-  #  gather_facts: no
+  gather_facts: no
+
+  #Create azure resocure group and virtual network
+  vars:
+    RG: 'ansiazurerg'
+    LC: 'koreacentral'
+    ST: 'present'
+    VN: 'ansitstvn'
+    AP: '10.11.0.0/16'
+    SBN: 'wasubnet'
 
   tasks:
 
-
   - name: Create RG
     azure_rm_resourcegroup:
-      name: ansiblesg1
-      location: koreacentral
+      name: '{{ RG }}'
+      location: '{{ LC }}'
+      state: '{{ ST }}'
     register: rg
 
   - debug:
       var: rg
 
   #Create virtual network 
-  #- name: Create virtual nw
+  - name: Create virtual nw
+    azure_rm_virtualnetwork:
+      resource_group:  '{{ RG }}'
+      name: '{{ VN }}'
+      address_prefixes: '{{ AP }}'
+      state: '{{ ST }}'
+    register: vn
 
+  - debug:
+      var: vn
 
+  #Create subnet to provide vm
+  - name: Create subnet on vn(virtual network)
+    azure_rm_subnet:
+      resource_group: '{{ RG }}'
+      virtual_network_name: '{{ VN  }}'
+      name: '{{ SBN }}'
+      address_prefix_cidr: '10.11.0.0/24'
+      state: '{{ ST }}'
+    register: sbn_regi
+
+  - debug:
+      var: sbn_regi
