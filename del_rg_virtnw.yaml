@@ -1,0 +1,37 @@
+---
+- hosts: localhost
+  connection: local
+  gather_facts: no
+
+  #Delete azure resocure group and virtual network
+  vars:
+    RG: 'ansiazurerg'
+    LC: 'koreacentral'
+    ST: 'absent'
+    VN: 'ansitstvn'
+    AP: '10.11.0.0/16'
+
+  tasks:
+
+  #Delete virtual network 
+  - name: Delete virtual nw
+    azure_rm_virtualnetwork:
+      resource_group:  '{{ RG }}'
+      name: '{{ VN }}'
+      address_prefixes: '{{ AP }}'
+      state: '{{ ST }}'
+    register: vn
+
+  - debug:
+      var: vn
+
+  - name: Delete RG
+    azure_rm_resourcegroup:
+      name: '{{ RG }}'
+      location: '{{ LC }}'
+      state: '{{ ST }}'
+    register: rg
+
+  - debug:
+      var: rg
+
