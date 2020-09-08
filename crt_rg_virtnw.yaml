@@ -48,3 +48,65 @@
 
   - debug:
       var: sbn_regi
+
+
+
+  - name: Create public Ip addr
+    azure_rm_publicipaddress:
+      name: ansi-tst-puip
+      resource_group: '{{ RG }}'
+      allocation_method: Static
+    
+    register: ansitstpuip
+
+  - debug:
+      var: ansitstpuip
+
+
+   #Get public ip of my machine
+  - name: Get my public IP
+    ipify_facts: 
+      
+  - name: Crt security group to allow ssh
+    azure_rm_securitygroup:
+      name: ansi-tst-sg
+      resource_group: '{{ RG }}'
+      purge_rules: yes
+      rules:
+        - name: 'AllowSSH'
+          protocol: Tcp
+          source_address_prefix:
+             - '{{ ipify_public_ip }}/32'
+          destination_port_range: 22
+          access: Allow
+          priority: 100
+          direction: Inbound
+
+  - name: Crt vn interface card
+    azure_rm_networkinterface:
+      name: ansi-vn-nic 
+      resource_group: '{{ RG }}'
+      virtual_network: '{{ VN }}'
+      subnet: '{{ SBN }}'
+      public_ip_name: ansi-tst-puip
+      security_group: ansi-tst-sg
+
+
+  - name: Crt the virtual machine
+    azure_rm_virtualmachine:
+      name: ansi-tst-vm
+      resource_group: '{{ RG }}'
+      admin_username: oyj
+      #vm_size: Standard_DS1_v2
+      vm_size: Standard_B1s
+      ssh_password_enabled: false
+      ssh_public_keys:
+         - path: /home/oyj/.ssh/authorized_keys
+           key_data: ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDKtH+rqM1jHyiI7QUIwWzJzAXAsuqBp4myEZHi+R3TAxigPFFOUfmusg5UrIy+e74RXGUxhQ1YU3ae1DETN3MiakbPh3YoTe294JWLQ0xj5ig1kqBawOn+fAu6pwEiQIIgOl4SBhPJUfhu47UBf8zOZ0Lt4IkdFGgDzQSgQ2F7VE9bQpWmUhwTsOaDDBVf86272CFsQZeghSr2CSP8/dRuhxsY68zQ/wRAfhWswej5JwlhxvGfnXFw1tjWD1dnSbDftKimpEgLBvteS3SEbn4T6ArZJMaKi57xBSlln0r7/7ro+jw7z/B/7axyiNR5YA+Ybg1Ow8afi50aUbNEkG+n oyj@desktop-server
+      network_interfaces: ansi-vn-nic
+      image:
+         offer: CentOS
+         publisher: OpenLogic
+         sku: '8.0'
+         version: latest
+      

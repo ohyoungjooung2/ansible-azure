@@ -13,6 +13,17 @@
     SBN: 'wasubnet'
 
   tasks:
+
+  - name: Delete RG
+    azure_rm_resourcegroup:
+      name: '{{ RG }}'
+      location: '{{ LC }}'
+      state: '{{ ST }}'
+      force_delete_nonempty: True
+    register: rg
+
+  - debug:
+      var: rg
   #Delete subnet to provide vm
   - name: Create subnet on vn(virtual network)
     azure_rm_subnet:
@@ -39,12 +50,3 @@
   - debug:
       var: vn
 
-  - name: Delete RG
-    azure_rm_resourcegroup:
-      name: '{{ RG }}'
-      location: '{{ LC }}'
-      state: '{{ ST }}'
-    register: rg
-
-  - debug:
-      var: rg
