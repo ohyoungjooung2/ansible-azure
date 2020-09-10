@@ -1,0 +1,317 @@
+---
+- hosts: localhost
+  connection: local
+  gather_facts: no
+
+  #Create azure resocure group and virtual network
+  vars:
+    RG: 'ansiazurerg'
+    LC: 'koreacentral'
+    ST: 'present'
+    VN: 'ansitstvn'
+    #Vpc range
+    AP: '10.11.0.0/16'
+    #Subnet
+    SBN: 'wasubnet'
+    #Admin
+    AU: 'oyj'
+    #Admin Passwd
+    ADP: 'tst@Pass!'
+
+  tasks:
+
+  - name: Create RG
+    azure_rm_resourcegroup:
+      name: '{{ RG }}'
+      location: '{{ LC }}'
+      state: '{{ ST }}'
+    register: rg
+
+  - debug:
+      var: rg
+
+  #Create virtual network 
+  - name: Create virtual nw
+    azure_rm_virtualnetwork:
+      resource_group:  '{{ RG }}'
+      name: '{{ VN }}'
+      address_prefixes: '{{ AP }}'
+      state: '{{ ST }}'
+    register: vn
+
+  - debug:
+      var: vn
+
+  #Create subnet to provide vm
+  - name: Create subnet on vn(virtual network)
+    azure_rm_subnet:
+      resource_group: '{{ RG }}'
+      virtual_network_name: '{{ VN  }}'
+      name: '{{ SBN }}'
+      address_prefix_cidr: '10.11.0.0/24'
+      state: '{{ ST }}'
+    register: sbn_regi
+
+  - debug:
+      var: sbn_regi
+
+  - name: Create public Ip addr
+    azure_rm_publicipaddress:
+      name: ansi-tst-puip
+      resource_group: '{{ RG }}'
+      allocation_method: Static
+    
+    register: ansitstpuip
+
+  - debug:
+      var: ansitstpuip.state.ip_address
+
+      #- meta: end_play
+   #Get public ip of my machine
+  - name: Get my public IP
+    ipify_facts: 
+      
+  - name: Crt security group to allow rdp
+    azure_rm_securitygroup:
+      name: ansi-tst-win-sg
+      resource_group: '{{ RG }}'
+      purge_rules: yes
+      rules:
+        - name: 'AllowRDP'
+          protocol: Tcp
+          source_address_prefix:
+             - '{{ ipify_public_ip }}/32'
+          destination_port_range: 3389
+          access: Allow
+          priority: 100
+          direction: Inbound
+  
+        - name: 'AllowHTTP'
+          protocol: Tcp
+          source_address_prefix:
+             - '{{ ipify_public_ip }}/32'
+          destination_port_range: 80
+          access: Allow
+          priority: 101
+          direction: Inbound
+
+        - name: 'AllowWinrm'
+          protocol: Tcp
+          source_address_prefix:
+             - '{{ ipify_public_ip }}/32'
+          destination_port_range: 5986
+          access: Allow
+          priority: 102
+          direction: Inbound
+
+        - name: 'Allow8080'
+          protocol: Tcp
+          source_address_prefix:
+             - '{{ ipify_public_ip }}/32'
+          destination_port_range: 8080
+          access: Allow
+          priority: 103
+          direction: Inbound
+
+  - name: Crt vn interface card
+    azure_rm_networkinterface:
+      name: ansi-vn-nic 
+      resource_group: '{{ RG }}'
+      virtual_network: '{{ VN }}'
+      subnet: '{{ SBN }}'
+      public_ip_name: ansi-tst-puip
+      security_group: ansi-tst-win-sg
+
+
+  - name: Crt the virtual machine
+    azure_rm_virtualmachine:
+      name: ansi-tst-winvm
+      os_type: Windows
+      resource_group: '{{ RG }}'
+      admin_username: oyj
+      admin_password: tst@Pass!
+      vm_size: Standard_DS1_v2
+      #vm_size: Standard_B1s
+      network_interfaces: ansi-vn-nic
+      ssh_password_enabled: false
+      image:
+         offer: WindowsServer
+         publisher: MicrosoftWindowsServer
+         sku: '2019-Datacenter'
+         version: latest
+    register: win_res
+
+  - debug:
+      var: win_res
+
+  - name: Create VM Extension
+    azure_rm_virtualmachineextension:
+      name: myvmextension
+      location: '{{ LC }}'
+      resource_group: '{{ RG }}'
+      virtual_machine_name: ansi-tst-winvm
+      publisher: Microsoft.Compute
+      virtual_machine_extension_type: CustomScriptExtension
+      type_handler_version: '1.8'
+      #settings: '{"commandToExecute": "powershell.exe Install-WindowsFeature -Name Web-Server"}'
+      #settings: '{"commandToExecute": "powershell.exe -ExecutionPolicy Unrestricted -File ./ConfigureRemotingForAnsible.ps1"}'
+      settings: '{"fileUris": ["https://raw.githubusercontent.com/ansible/ansible/devel/examples/scripts/ConfigureRemotingForAnsible.ps1"],"commandToExecute": "powershell -ExecutionPolicy Unrestricted -File ConfigureRemotingForAnsible.ps1"}'
+      auto_upgrade_minor_version: true
+
+
+  #Wait for winrm to listen on port 5986
+  - name: Wait for WinRM on all hosts
+    wait_for:
+      port: 5986
+      host: "{{ ansitstpuip.state.ip_address }}"
+      timeout: 300
+      state: started
+ 
+  - name: Include winrm.yaml
+    include_vars:
+      file: winrm.yaml
+
+  - name: Create tmp dir in c:\\
+    win_file:
+      path: C:\tmp
+      state: directory
+
+   #Win module need module. Do "pip3 install pywinrm"
+  - name: Copy a single file as another user
+    win_copy:
+      src: '{{ item  }}'
+      dest: 'c:\tmp\{{ item }}'
+    register: wcpy
+    with_items:
+      - jdk-8u261-windows-x64.exe
+      - apache-tomcat-8.5.57.exe
+
+  - debug:
+      var: wcpy
+
+   #Install jdk-8.exe
+  - name: Install jdk-8u261-windows-x64.exe
+    win_package:
+      path: 'c:\tmp\jdk-8u261-windows-x64.exe'
+      product_id: jdk-8u261
+      arguments:
+         - /s
+         - /quiet
+      state: present
+    vars:
+    register: inst_jdk
+
+  - debug:
+      var: inst_jdk
+
+  #- name: java_home set jdk1.8.0_261
+  - name: java_home jdk-8u261
+    win_path:
+      name: JAVA_HOME
+      elements: C:\Program Files\java\jdk1.8.0_261
+      scope: machine
+      state: present
+    register: inst_java_home
+
+  - debug:
+      var: inst_java_home
+
+
+  #- name: java_path set jdk1.8.0_261
+  - name: path jdk-8u261
+    win_path:
+      name: PATH
+      elements: C:\Program Files\java\jdk1.8.0_261\bin
+      scope: machine
+      state: present
+    register: inst_java_path
+
+  - debug:
+      var: inst_java_path
+
+  #- name: reboot
+  #- name: reboot win server
+#    win_reboot:
+#      msg: "Reboot this server 3 secs later"
+#      post_reboot_delay: 3
+#      test_command: whoami
+
+
+  - name: check jdk version
+    win_shell: "java -version"
+    args:
+      executable: cmd
+    register: java_version
+
+    #- debug: msg="{{ java_version.stderr_lines }}"
+  - debug:
+      var: java_version
+
+
+
+  ######################################################################
+  #***Tomcat install begin***###########################################
+  
+  - name: Ensure user tomcat is present
+    win_user:
+      name: tomcat
+      password: Pass#G*#9087
+      state: present
+      groups:
+        - Users
+
+  - name: Grant domain account the SeServiceLogonRight user right
+    win_user_right:
+      name: SeServiceLogonRight
+      users:
+        - tomcat
+      action: add
+
+  #Install apache-tomcat-8.5.57.exe
+  - name: Install apache-tomcat-8.5.57.exe
+    win_package:
+      path: 'c:\tmp\apache-tomcat-8.5.57.exe'
+      product_id: apache-tomcat-8.5.5.57
+      arguments:
+         - /S
+         - /D=C:\tomcat8
+      state: present
+      user_name: tomcat
+      user_password: Pass#G*#9087
+    register: inst_tomcat
+
+  - name: Add TOMCAT USRS allow rights
+    win_acl:
+      path: C:\tomcat8
+      user: tomcat
+      rights: FullControl
+      type: allow
+      state: present
+      inherit: ContainerInherit, ObjectInherit
+      propagation: 'None'
+      
+  - name: Firewall rule to allow tomcat on TCP port 8080
+    win_firewall_rule:
+      name: TOMCAT8_SERVICE
+      localport: 8080
+      action: allow
+      direction: in
+      protocol: tcp
+      state: present
+      enabled: yes
+
+
+  - name: tomcat service start
+    win_service:
+      desktop_interact: no
+      force_dependent_services: yes
+      name: Tomcat8
+      start_mode: auto
+      state: started
+      #state: stopped
+      #username: administrator
+      username: tomcat
+      password: Pass#G*#9087
+      #password: "{{ ansible_pass }}"
+      #username: LocalSystem
+      #password: ''
