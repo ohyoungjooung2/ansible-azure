@@ -1,0 +1,7 @@
+---
+ansible_user: '{{ AU }}'
+ansible_password: '{{ ADP }}'
+ansible_host: "{{  ansitstpuip.state.ip_address }}"
+ansible_connection: winrm
+ansible_winrm_transport: basic
+ansible_winrm_server_cert_validation: ignore
